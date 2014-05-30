@@ -1,0 +1,139 @@
+<input type="file" id="your-files" multiple>
+<title>Facility Parser</title>	
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+<script src="jquery.parse.js"></script>
+<script>
+
+function Facility(name, process, street, city, state, zip, latitude, longitude, accidents, chemicals) {
+	this.name = name;
+	this.process = process;
+	this.street = street;
+	this.city = city;
+	this.state = state;
+	this.zip = zip;
+	this.latitude = latitude;
+	this.longitude = longitude;
+	this.accidents = accidents;
+	this.chemicals = chemicals;
+}
+
+var control = document.getElementById("your-files");
+control.addEventListener("change", function(event) {
+
+    // When the control has changed, there are new files
+    var files = control.files;
+    var len = files.length;
+
+    //print file stats    
+    for (var i = 0; i < len; i++) {
+        console.log("Filename: " + files[i].name);
+        console.log("Type: " + files[i].type);
+        console.log("Size: " + files[i].size + " bytes");
+    }
+
+    //read the file with Papa Parser    
+	$('input[type=file]').parse({
+	    complete: function(data) {
+	        // console.log("Parse results:", data.results);
+			
+			//store rows from results in a variable
+	        var rows = data.results.rows;
+			var facilities = {};
+
+			console.log("Total rows in file: ", rows.length);
+			//loop through each row and read the chemical name for each facility ID
+	        for (var i = 0; i < rows.length; i++) {
+	        	
+	        	var row = rows[i];
+
+			    //If this is the first time we're seeing the facility, add its info to the dict
+			    var facilityID = row.Facility_ID;
+
+			    if (!(facilityID in facilities)) {
+
+			    	var newFacility = new Facility(row.Facility_Name, row.Process, row.Street, row.City, row.State, row.Zip, row.Latitude, row.Longitude, row.Total_Accidents, []);
+			        facilities[facilityID] = newFacility;
+			    }
+			    
+			    //Add the chemical in this row to the facility's list of chemicals
+				var facilityToUpdate = facilities[facilityID];
+			    facilityToUpdate.chemicals.push(row.Chemical_Name);
+			}
+			
+			var table = [];
+
+			var headerRow =  [ 	
+    						"Facility Name", 
+    						"Process",
+							"Street",
+							"City",
+							"State",
+							"Zip",
+							"Latitude",
+							"Longitude",
+							"Accidents",
+							"Total # of Chemicals",
+							"Chemical Names"
+						   ];
+			table.push(headerRow);
+
+			for (var facilityKey in facilities) {
+
+				var facility = facilities[facilityKey];
+				// console.log(facilities[facilityKey]);
+				// console.log("Facility Name:", facility.name, "All Chemicals:", facility.chemicals);
+				 
+				//Escape cells
+			    facility.name = facility.name.replace(/"/g,"\"\"");
+			        
+			    // If it has any commas, quotes, or newlines in it, put quotes around the entire cell
+			    if (facility.name.match(/[",\n]/)) {
+			    	facility.name = "\""+facility.name+"\"";   
+			    }
+
+    			var row =  [ 	
+    						facility.name, 
+    						facility.process,
+							facility.street,
+							facility.city,
+							facility.state,
+							facility.zip,
+							facility.latitude,
+							facility.longitude,
+							facility.accidents,
+							facility.chemicals.length,
+							facility.chemicals.join('; ')
+						   ];
+    			// console.log(row);
+    			table.push(row);
+			}
+
+			console.log("Done: Table created in memory.");
+
+			//Smash table together in some way
+			//First, smash each row into a single string
+			//Then smash all the rows into one string
+			var output = table.map(function(row) {
+			    return row.join("\t");
+			}).join("\n");
+
+			// console.log(output);
+
+			var blob = new Blob([output],{
+				type: "text/tsv;charset=utf-8;"
+			});
+
+			var blobUrl = URL.createObjectURL(blob);
+
+			var link = document.createElement("a");
+			link.setAttribute("href", blobUrl);
+			link.setAttribute("download", "facilities_remapped.tsv");
+
+			link.click(); // This will download the data file named "facilities_remapped.tsv".
+
+			console.log("Done done! .tsv file written out to the disk");
+	    }
+	});
+
+	}, false);
+</script>
